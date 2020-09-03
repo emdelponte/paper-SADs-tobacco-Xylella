@@ -1,0 +1,701 @@
+---
+title: "SAD tobacco Xylella"
+author: "Emerson"
+date: "4/10/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+library(gsheet)
+library(tidyverse)
+library(ggridges)
+
+library(lme4)
+library(gtools)
+library(sjmisc)
+library(ggsci)
+```
+
+
+```{r}
+sad1 <- gsheet2tbl("https://docs.google.com/spreadsheets/d/19CqDqgWF1dGFXZHCdPMWUi9D1Fhd39elrYN7-MEwoAI/edit?usp=sharing")
+
+sad1 <- sad1 %>%
+  mutate(Aided2 = as.numeric(Aided2)) %>%
+  filter(!Leaf %in% c(47, 15, 43, 14, 38, 4, 24, 9, 44, 29)) %>%
+  mutate(true = rowMeans(x = select(
+    .data = .,
+    4:6
+  )))
+```
+
+
+
+
+```{r}
+summary(sad1$ImageJ)
+summary(sad1$LeafDoctor)
+summary(sad1$Assess)
+sd(sad1$ImageJ)
+sd(sad1$LeafDoctor)
+sd(sad1$Assess)
+
+sad11 <- sad1 %>%
+  dplyr::select(-9) %>%
+  mutate(Aided = as.numeric(Aided)) %>%
+  pivot_longer(4:7,9,
+    names_to = "Method",
+    values_to = "Measure"
+  )
+```
+
+
+
+## Software measures
+
+### Figure 1
+
+
+
+
+```{r}
+p_ASLD <- sad11 %>%
+  ggplot(aes(Assess, LeafDoctor)) +
+  geom_point(size = 3, shape = 1) +
+  geom_abline(slope = 1, intercept = 0) +
+  coord_fixed() +
+  labs(
+    x = "APS Assess (%)",
+    y = "Leaf Doctor (%)"
+  )
+
+p_ASIJ <- sad11 %>%
+
+  ggplot(aes(Assess, ImageJ)) +
+  geom_point(size = 3, shape = 1) +
+  coord_fixed() +
+  geom_abline(slope = 1, intercept = 0) +
+  labs(
+    x = "APS Assess (%)",
+    y = "ImageJ (%)"
+  )
+
+p_IJLD <- sad11 %>%
+  ggplot(aes(ImageJ, LeafDoctor)) +
+  geom_point(size = 3, shape = 1) +
+  coord_fixed() +
+  geom_abline(slope = 1, intercept = 0) +
+  labs(
+    x = "ImageJ (%)",
+    y = "Leaf Doctor (%)"
+  )
+
+
+sad11 <- sad1 %>%
+  select(3:6, 10) %>%
+  unique()
+
+p_trueLD <- sad11 %>%
+  ggplot(aes(true, (LeafDoctor - true))) +
+  geom_point(shape =1, size =3) +
+  geom_hline(yintercept = 0) +
+  ylim(-4,4)+
+  labs(
+    x = "Mean software measures (%)",
+    y = "Leaf Doctor measure (%)")
+
+p_trueAS <- sad11 %>%
+
+  ggplot(aes(true, (Assess - true))) +
+  geom_point(shape =1, size =3 ) +
+  geom_hline(yintercept = 0)+
+    ylim(-4,4)+
+  labs(
+    x = "Mean software measure (%)",
+    y = "Assess measure (%)")
+
+p_trueIJ <- sad11 %>%
+  ggplot(aes(true, (ImageJ - true))) +
+  geom_point(shape = 1, size =3) +
+  geom_hline(yintercept = 0)+
+    ylim(-4,4)+
+    labs(
+    x = "Mean software measure (%)",
+    y = "ImageJ measure (%)")
+
+library(patchwork)
+soft2 <- (p_trueAS | p_trueIJ | p_trueLD) 
+
+
+soft1 <- (p_ASLD | p_ASIJ | p_IJLD)
+
+(soft1 / soft2) + plot_annotation(tag_levels = "A")  
+ggsave("figs/fig_softwares.png", width = 9, height = 7)
+```
+
+### CCC software measures
+
+```{r}
+library(epiR)
+epi.ccc(sad11$true, sad11$ImageJ)
+epi.ccc(sad11$true, sad11$LeafDoctor)
+epi.ccc(sad11$true, sad11$Assess)
+
+
+sad12 <- sad1 %>%
+  select(7, 8, 10) %>%
+  unique()
+epi.ccc(sad12$Aided, sad12$true)
+
+epi.ccc(sad12$Unaided, sad12$true)
+
+```
+
+
+
+```{r fig.height=8, fig.width=4}
+library(cowplot)
+Fig1A <- sad1 %>%
+  select(1:3, 7:10) %>%
+  ggplot(aes(true, (Unaided - true))) +
+  geom_jitter(
+    shape = 16, alpha = .5, width = .5, height = 0.2,
+    color = "darkred", size = 2
+  ) +
+  geom_smooth(se = F, size = 2, linetype = 1, color = "grey50") +
+  # geom_boxplot(notch=FALSE, outlier.colour = NA)+
+  theme_minimal_grid() +
+  xlim(0, 85) +
+
+  ylim(-50, 75) +
+  labs(x = "Percent actual severity", y = "Percent point error") +
+  #  facet_wrap(~Rater, ncol = 7)+
+  geom_abline(intercept = 0, slope = 0)
+
+Fig1B <- sad1 %>%
+  select(1:3, 7:10) %>%
+  ggplot(aes(true, (Aided - true))) +
+  geom_jitter(
+    shape = 16, alpha = .5, width = .5, height = 0.2,
+    color = "steelblue", size = 2
+  ) +
+  geom_smooth(se = F, size = 2, linetype = 1, color = "grey50") +
+  theme_minimal_grid() +
+
+  xlim(0, 85) +
+  ylim(-50, 75) +
+  labs(x = "Percent actual severity", y = "Percent point error") +
+  # facet_wrap(~Rater, ncol = 5)+
+  geom_abline(intercept = 0, slope = 0)
+
+library(patchwork)
+Fig1 <- (Fig1A | Fig1B) + plot_annotation(tag_levels = "A")
+ggsave("figs/fig1.png", width = 8, height =4)
+```
+
+
+
+
+
+
+```{r fig.height=8, fig.width=4}
+sad1 %>%
+  select(1:3, 7:10) %>%
+  ggplot(aes(true, (as.numeric(Aided2) - true), color = Laboratory)) +
+  geom_point(shape = 1) +
+  theme_minimal() +
+  facet_wrap(~Laboratory, ncol = 1) +
+  geom_abline(intercept = 0, slope = 0)
+```
+
+
+
+## epiR
+
+```{r}
+library(epiR)
+dat_ccc <- sad1 %>%
+  pivot_longer(7:8, names_to = "type", values_to = "sev") %>%
+  group_by(type, Laboratory, Rater) %>%
+  summarise(
+    ccc_est = epi.ccc(ImageJ, sev)$rho.c$est,
+    ccc_lower = epi.ccc(ImageJ, sev)$rho.c$lower,
+    ccc_upper = epi.ccc(ImageJ, sev)$rho.c$upper,
+    cb = epi.ccc(ImageJ, sev)$C.b,
+    lshift = epi.ccc(ImageJ, sev)$l.shift,
+    sshift = epi.ccc(ImageJ, sev)$s.shift,
+    r = cor(ImageJ, sev)
+  ) %>%
+  mutate(time = case_when(
+    type == "Unaided" ~ 1,
+    TRUE ~ 2
+  ))
+
+library(epiR)
+
+dat_ccc_assess <- sad1 %>%
+  pivot_longer(7:8, names_to = "type", values_to = "sev") %>%
+  group_by(type, Laboratory, Rater) %>%
+  summarise(
+    ccc_est = epi.ccc(Assess, sev)$rho.c$est,
+    ccc_lower = epi.ccc(Assess, sev)$rho.c$lower,
+    ccc_upper = epi.ccc(Assess, sev)$rho.c$upper,
+    cb = epi.ccc(Assess, sev)$C.b,
+    lshift = epi.ccc(Assess, sev)$l.shift,
+    sshift = epi.ccc(Assess, sev)$s.shift,
+    r = cor(Assess, sev)
+  )
+
+
+dat_ccc_leaf <- sad1 %>%
+  pivot_longer(7:8, names_to = "type", values_to = "sev") %>%
+  group_by(type, Laboratory, Rater) %>%
+  summarise(
+    ccc_est = epi.ccc(LeafDoctor, sev)$rho.c$est,
+    ccc_lower = epi.ccc(LeafDoctor, sev)$rho.c$lower,
+    ccc_upper = epi.ccc(LeafDoctor, sev)$rho.c$upper,
+    cb = epi.ccc(LeafDoctor, sev)$C.b,
+    lshift = epi.ccc(LeafDoctor, sev)$l.shift,
+    sshift = epi.ccc(LeafDoctor, sev)$s.shift,
+    r = cor(LeafDoctor, sev)
+  )
+
+dat_ccc_true <- sad1 %>%
+  pivot_longer(7:8, names_to = "type", values_to = "sev") %>%
+  group_by(type, Laboratory, Rater) %>%
+  summarise(
+    ccc_est = epi.ccc(true, sev)$rho.c$est,
+    ccc_lower = epi.ccc(true, sev)$rho.c$lower,
+    ccc_upper = epi.ccc(true, sev)$rho.c$upper,
+    cb = epi.ccc(true, sev)$C.b,
+    lshift = epi.ccc(true, sev)$l.shift,
+    sshift = epi.ccc(true, sev)$s.shift,
+    r = cor(ImageJ, sev)
+  ) 
+```
+
+
+## Agreement interval
+
+```{r}
+library(epiR)
+library(AgreementInterval)
+dat <- sad1 %>%
+  filter(Rater == 37) %>%
+  select(true, Aided, Unaided)
+ag1A <- ai(x = dat$true, y = dat$Aided, clin.limit = c(-10, 10))
+ag1A$intervalEst$`95LL`[3]
+ag1A$intervalEst$`95UL`[3]
+ag1A$alpha.cl
+ag1A$tolProb.cl
+
+ag1U <- ai(x = dat$true, y = dat$Unaided, clin.limit = c(-10, 10))
+ag1U$intervalEst$`95LL`[3]
+ag1U$intervalEst$`95UL`[3]
+ag1U$alpha.cl
+```
+
+
+```{r}
+gain <- dat_ccc %>%
+  ungroup() %>%
+  select(Laboratory, Rater, type, ccc_est) %>%
+  group_by(type) %>%
+  mutate(row = row_number()) %>%
+  tidyr::pivot_wider(names_from = type, values_from = ccc_est) %>%
+  mutate(diff = Aided - Unaided)
+```
+
+
+
+```{r}
+theme_set(theme_minimal_grid())
+gain %>%
+  ggplot(aes(Laboratory, diff)) +
+  geom_violin(outlier.colour = NA) +
+  geom_hline(yintercept = 0) +
+  geom_jitter(width = 0.05, shape =1) +
+  theme_minimal_grid()
+```
+
+
+
+# Effect-size
+
+```{r}
+library(effectsize)
+gainA <- gain %>%
+  filter(Laboratory == "A")
+hedges_g("Aided", "Unaided", data = gainA, correction = T, paired = TRUE)
+```
+
+```{r }
+library(cowplot)
+library(hrbrthemes)
+library(viridis)
+theme_set(theme_minimal_grid(font_size = 7))
+
+ccc1 <- dat_ccc %>%
+  ggplot(aes(cb, r, color = ccc_est, shape = type, label = Rater)) +
+  theme_minimal_grid(font_size =12) +
+  theme(legend.position = "top",
+        legend.text=element_text(size=rel(0.6))) +
+   ylim(0.35, 1)+
+  geom_point(size = 3, alpha = 0.9) +
+  # geom_text(check_overlap = TRUE)+
+  scale_color_gsea(reverse = T) +
+  facet_wrap(~Laboratory, ncol =4) +
+  labs(
+    color = "ρc", shape = "Method", x = "Generalized bias (Cb)",
+    y = "Precision (r)"
+  )
+```
+
+
+```{r}
+ccc2 <- dat_ccc %>%
+  ggplot(aes(reorder(type, ccc_est), ccc_est, fill = ccc_est, group = Rater)) +
+  geom_line(color = "gray40", position = position_dodge(width = 0.2)) +
+  geom_point(alpha = 0.7, size = 3, shape = 21, position = position_dodge(width = 0.2)) +
+  theme_minimal_grid() +
+  labs(
+    y = "Concordance coefficient (ρc) ",
+    x = "Assessment type",
+    fill = "ρc"
+  ) +
+  ylim(0.25, 1)+
+  theme(legend.position = "none")+
+  scale_fill_gsea(reverse = T)+
+  facet_wrap(~Laboratory, ncol =4) 
+
+````
+
+
+```{r}
+ccc1 / ccc2 +
+  plot_layout(guides = 'auto') + plot_annotation(tag_levels = "A")
+ggsave("figs/Fig_CCC.png", width =9, height =7)
+
+```
+
+
+## glmmTMB
+
+```{r}
+library(glmmTMB)
+
+
+mix2 <- glmmTMB(cb ~ type * Laboratory + (1 | Rater), dat_ccc_true, beta_family(link = "logit"), REML = F)
+car::Anova(mix2)
+
+
+
+summary(mix2)
+library(ggeffects)
+df <- data.frame(ggpredict(mix2, terms = c("Laboratory", "type")))
+df
+library(emmeans)
+x <- emmeans(mix2, ~ type | Laboratory, transform = "response")
+library(multcomp)
+cld(x)
+emmip(mix2,  Laboratory ~ type)
+plot(x, by = "Laboratory")
+```
+
+### R2 statistics
+
+```{r}
+
+cor(model.response(model.frame(mix2)),predict(mix2,type="response"))^2
+1-var(residuals(mix2))/var(model.response(model.frame(mix2)))
+
+```
+
+## Influence analysis
+
+```{r}
+library(influence.ME)
+influence(mix2, "Rater")
+
+```
+
+
+
+### testing overdispersion
+
+```{r}
+overdisp_fun <- function(model) {
+    rdf <- df.residual(model)
+    rp <- residuals(model,type="pearson")
+    Pearson.chisq <- sum(rp^2)
+    prat <- Pearson.chisq/rdf
+    pval <- pchisq(Pearson.chisq, df=rdf, lower.tail=FALSE)
+    c(chisq=Pearson.chisq,ratio=prat,rdf=rdf,p=pval)
+}
+overdisp_fun(mix2)
+
+```
+
+
+### model fit
+
+```{r}
+library(broom.mixed)
+aa <- augment(mix2, data = dat_ccc)
+gg2 <- (ggplot(aa, aes(.fitted, .resid))
++ geom_line(aes(group = Rater), colour = "gray")
+  + geom_point(aes(colour = type, shape = Laboratory))
+  + geom_smooth()
+)
+gg2
+
+aa$.fitted0 <- predict(mix2, newdata = transform(dat_ccc, Rater = NA), type = "response")
+aa$.resid0 <- dat_ccc$ccc_est - aa$.fitted0
+gg3 <- (ggplot(aa, aes(.fitted0, .resid0))
++ geom_line(aes(group = Rater), colour = "gray")
+  + geom_point(aes(colour = Laboratory, shape = type))
+  + geom_smooth()
+)
+gg3
+lme4:::dotplot.ranef.mer(ranef(mix2)$cond)
+```
+
+## Figure CCC estimates
+
+````{r}
+df$group <- factor(df$group, levels = c("Unaided", "Aided"))
+
+dat_ccc$type <- factor(dat_ccc$type, levels = c("Unaided", "Aided"))
+
+df %>%
+  dplyr::select(group, x, predicted, conf.low, conf.high)  %>%
+  ggplot(aes(x = x, y = predicted, color = group)) +
+
+  geom_violin(
+    data = dat_ccc, aes(Laboratory, ccc_est, fill = type),
+    position = position_dodge(width = 0.5), alpha = 0.3,
+    color = NA
+  ) +
+  geom_point(position = position_dodge(width = 0.5), size = 2) +
+  geom_errorbar(aes(ymin = conf.low, ymax =  conf.high),
+    width = 0.1,
+    position = position_dodge(width = 0.5), size = 0.8
+  ) +
+  geom_text(
+    aes(label = round(predicted, 2), predicted = predicted + 0.05),
+    position = position_dodge(1.2),
+    vjust = 0
+  ) +
+
+  scale_fill_startrek() +
+  scale_color_startrek() +
+  theme_minimal_grid(font_size = 10) +
+  labs(
+    x = "Laboratory", y = "Overall concordance (ρc)",
+    fill = "Assessment", color = NA
+  ) +
+  theme(legend.position = "bottom") +
+  guides(color = FALSE) +
+  ylim(0.3, 1) +
+  ggsave("figs/estimates_overall_concordace.png", width = 5, height = 3.5)
+```
+
+
+
+
+```{r fig.height=3, fig.width=5}
+library(cowplot)
+library(gghalves)
+library(ggbeeswarm)
+library(viridis)
+library(ggsci)
+```
+
+## Interrater reliability
+
+Two methods were used here. The overall concordance coefficient and the intra-class correlation coefficient.
+
+
+### Aided
+
+```{r}
+library(irr)
+library(epiR)
+library(dplyr)
+sad_aid <- sad1 %>% 
+  dplyr::select(Leaf, Rater, Aided) %>% 
+    spread(Rater, Aided, 2:3) %>% 
+  dplyr::select(-1) %>% 
+   data.matrix()
+
+sad_occc_aid <- epi.occc(sad_aid, na.rm = FALSE, pairs = TRUE)
+sad_icc_aid <- icc(sad_aid, model = "twoway", unit = "single", type = "agreement")
+sad_occc_aid$occc
+sad_icc_aid$value
+sad_icc_aid$lbound
+sad_icc_aid$ubound
+
+# install.packages("psych")
+library(psych)
+i <- ICC(sad_aid)
+i
+
+```
+
+
+### Unaided
+
+```{r}
+sad_noaid <- sad1 %>% 
+  dplyr::select(Leaf, Rater, Unaided) %>% 
+    spread(Rater, Unaided, 2:3) %>% 
+   dplyr::select(-1) %>% 
+   data.matrix()
+
+sad_occc_noaid <- epi.occc(sad_noaid, na.rm = FALSE, pairs = TRUE)
+sad_icc_noaid <- icc(sad_noaid, model = "twoway", unit = "single", type = "agreement")
+sad_occc_noaid$occc
+sad_icc_noaid$value
+sad_icc_noaid$lbound
+sad_icc_noaid$ubound
+
+i <- ICC(sad_noaid)
+i
+
+
+
+```
+
+
+## Laboratory A
+
+```{r}
+sad_aid_A <- sad1 %>% 
+  filter(Laboratory == "A") %>% 
+  dplyr::select(Leaf, Rater, Aided) %>% 
+    spread(Rater, Aided, 2:3) %>% 
+   dplyr::select(-1) %>% 
+   data.matrix()
+
+sad_occc_aid_A <- epi.occc(sad_aid_A, na.rm = FALSE, pairs = TRUE)
+sad_icc_aid_A <- icc(sad_aid_A, model = "oneway", unit = "single", type = "agreement")
+sad_occc_aid_A$occc
+sad_icc_aid_A$value
+sad_icc_aid_A$lbound
+sad_icc_aid_A$ubound
+
+sad_aid_A <- sad1 %>% 
+  filter(Laboratory == "A") %>% 
+  dplyr::select(Leaf, Rater, Unaided) %>% 
+    spread(Rater, Unaided, 2:3) %>%
+  dplyr::select(-1) %>% 
+   data.matrix()
+
+sad_occc_aid_A <- epi.occc(sad_aid_A, na.rm = FALSE, pairs = TRUE)
+sad_icc_aid_A <- icc(sad_aid_A, model = "oneway", unit = "single", type = "agreement")
+sad_occc_aid_A$occc
+sad_icc_aid_A$value
+sad_icc_aid_A$lbound
+sad_icc_aid_A$ubound
+
+i <- ICC(sad_aid_A)
+i$summary
+
+
+```
+
+
+
+## Laboratory B
+
+```{r}
+sad_aid_B <- sad1 %>% 
+  filter(Laboratory == "B") %>% 
+  dplyr::select(Leaf, Rater, Unaided) %>% 
+    spread(Rater, Unaided, 2:3) %>% 
+   dplyr::select(-1) %>% 
+   data.matrix()
+
+sad_occc_aid_B <- epi.occc(sad_aid_B, na.rm = FALSE, pairs = TRUE)
+sad_icc_aid_B <- icc(sad_aid_B, model = "oneway", unit = "single", type = "agreement")
+sad_occc_aid_B$occc
+sad_icc_aid_B$value
+sad_icc_aid_B$lbound
+sad_icc_aid_B$ubound
+
+i <- ICC(sad_aid_B)
+i$summary
+i
+
+
+
+
+```
+
+
+
+## Laboratory C
+
+```{r}
+sad_aid_C <- sad1 %>% 
+  filter(Laboratory == "C") %>% 
+  dplyr::select(Leaf, Rater, Aided) %>% 
+    spread(Rater, Aided, 2:3) %>%
+  dplyr::select(-1) %>% 
+  
+   data.matrix()
+
+sad_occc_aid_C <- epi.occc(sad_aid_C, na.rm = FALSE, pairs = TRUE)
+sad_icc_aid_C <- icc(sad_aid_C, model = "oneway", unit = "single", type = "agreement")
+sad_occc_aid_C$occc
+sad_icc_aid_C$value
+sad_icc_aid_C$lbound
+sad_icc_aid_C$ubound
+
+i <- ICC(sad_aid_C)
+i$summary
+i
+
+```
+
+
+
+## Laboratory D
+
+```{r}
+sad_aid_D <- sad1 %>% 
+  filter(Laboratory == "D") %>% 
+  dplyr::select(Leaf, Rater, Unaided) %>% 
+    spread(Rater, Unaided, 2:3) %>% 
+  dplyr::select(-1) %>% 
+   data.matrix()
+
+sad_occc_aid_D <- epi.occc(sad_aid_D, na.rm = FALSE, pairs = TRUE)
+sad_icc_aid_D <- icc(sad_aid_D, model = "twoway", unit = "single", type = "agreement")
+sad_occc_aid_D$occc
+sad_icc_aid_D$value
+sad_icc_aid_D$lbound
+sad_icc_aid_D$ubound
+
+i <- ICC(sad_aid_D)
+i$summary
+i
+
+```
+
+```{r}
+library(rptR)
+data(BeetlesBody)
+str(BeetlesBody)
+
+rpt(BodyL ~ (1 | Population), grname = "Population", data = BeetlesBody, datatype = "Gaussian", 
+    nboot = 0, npermut = 0)
+rpt(Unaided ~ (1 | Laboratory), grname = "Laboratory", data = sad1, datatype = "Gaussian", 
+    nboot = 0, npermut = 0)
+
+dat <- BeetlesBody
+
+```
+
